@@ -1,0 +1,194 @@
+<!doctype html>
+<!-- HiVEMQ
+https://websocketclient.hivemq.cloud/?username=ugym-devices&host=3a8247b564f04a0a81e7e1d070882e1e.s1.eu.hivemq.cloud&port=8884
+
+-------------------------------
+Topic:
+00:11:22:33:44:55/cmd
+
+Message:
+{"cmd":"要求量測", "name":"Paul Kang", "pic":"https://profile.line-scdn.net/0m00af3784725150d454061f6166cf75d95eb255c87861", "phone":"0955039022"}
+------------------------------------
+Topic:
+00:11:22:33:44:55/ble
+
+Message:
+{"ble_online":true}
+------------------------------------
+Topic:
+00:11:22:33:44:55/dyna_data
+
+Message:
+{"measurement":32.2}
+------------------------------------
+-->
+<html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <title>握力器 模擬器</title>
+    <link rel="stylesheet" href="main.css">
+  </head>
+
+  <body>
+    
+    <script src="js/jquery-3.5.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.js" type="text/javascript"></script>            
+
+    <img src="金機.png" style="width:300px; margin:20px">
+     V0.1
+      
+    <div style="margin-left:30px;">
+      <label id="mqtt_status" style=" font-size:24px">Connecting MQTT ...</label><br><br>
+      
+      <label style=" font-size:24px">控制盒名稱</label>
+      <input id="bleAddr_input" style=" font-size:24px" value="Orange0001"/><br><br>
+      <button onclick="發送控制盒上線訊號()" style=" font-size:24px">發送控制盒上線訊號</button><br><br>
+      <button onclick="亂數產生及發送握力數據()" style=" font-size:24px">亂數產生及發送握力數據</button>
+      <label id="握力值" style=" font-size:24px">握力值</label>
+      
+      <br><br><br><hr><br><br><br>
+      <button onclick="發送量測要求()" style="font-size:24px">模擬 LINE 發送 量測要求</button><br><br>      
+    </div>
+    
+    <script>
+      
+      //"3a8.....cloud" 要改為從 Firebase 取得 
+      var mqtt_client = new Paho.MQTT.Client("3a8247b564f04a0a81e7e1d070882e1e.s1.eu.hivemq.cloud", 8884, "web_" + parseInt(Math.random() * 100, 10));
+
+      // set callback handlers
+      mqtt_client.onConnectionLost = onConnectionLost;
+      mqtt_client.onMessageArrived = onMessageArrived;
+      var options = { //要改為從 Firebase 取得
+        useSSL: true,
+        userName: "ugym-devices",
+        password: "Ab-123456",        
+        onSuccess:onConnect,
+        onFailure:doFail
+      }
+
+      // connect the mqtt_client
+      mqtt_client.connect(options);      
+            
+      // called when the mqtt_client connects
+      function onConnect() {
+        // Once a connection has been made, make a subscription and send a message.
+        console.log("MQTT onConnect");
+
+        $("#mqtt_status").text("MQTT 已連線");               
+          
+        mqtt_client.subscribe($("#bleAddr_input").val()+"/#"); //模擬 mac address
+        var nowTime= new Date();
+        publish_msg("dyno_online", nowTime.getTime().toString());
+
+      }
+
+      function doFail(e){
+        console.log(e);
+        console.log("請確認網路是否可連上網際網路");
+        
+      }
+
+      // called when the mqtt_client loses its connection
+      function onConnectionLost(responseObject) {
+        if (responseObject.errorCode !== 0) {
+          console.log("onConnectionLost:"+responseObject.errorMessage);
+          $("#mqtt_status").text("MQTT 未連線");               
+        }
+      }
+
+      // called when a message arrives
+      function onMessageArrived(message) {
+        console.log("onMessageArrived:");
+        
+        var topic=message.destinationName.split('/');
+        var sn         = topic[0];
+        var cmd_status = topic[1];
+        
+        console.log(topic, message.payloadString);
+        
+//        switch(cmd_status) {
+//          case "dyno_online":
+//              var online_info=JSON.parse(message.payloadString);
+//              console.log(online_info);                            
+//              $("#dyno_status").text("已連線");               
+//              $("#dyno_status").css("background-color", "green");  
+//              current_state=0; // ready
+//              break;    
+//          case "dyno_offline":
+//              var online_info=JSON.parse(message.payloadString);
+//              console.log(online_info);                            
+//              $("#dyno_status").text("未連線");               
+//              $("#dyno_status").css("background-color", "red");   
+//              current_state=-2;
+//              break;            
+//          case "cmd":
+//              var user_info=JSON.parse(message.payloadString);
+//              console.log(user_info);
+//              if (user_info.cmd=="要求量測" && current_state==0) 
+//                要求量測(user_info); 
+//              else
+//                alert("有量測要求，但有連線問題，請查看左欄連線資訊，修正問題");
+//              break;
+//          case "ble":
+//              var ble=JSON.parse(message.payloadString);
+//              console.log(ble);
+//              //ble.online true/false 代表 ESP32 有無連上握力器的 BLE
+//              break;
+//          case "dyna_data":
+//              var dyna_data=JSON.parse(message.payloadString);
+//              console.log(dyna_data);
+//              //dyna_data.measurement string 代表 握力器 傳來的測量值
+//              break;            
+//          default:
+//            console.log("unknow cmd/status:", cmd_status)
+//        }
+      
+
+      }
+      
+      async function publish_msg(cmd_status, msg){
+        var message; 
+        message = new Paho.MQTT.Message(msg);
+        message.destinationName = $("#bleAddr_input").val()+"/"+ cmd_status;
+        message.qos=0; //不見得要 1, 0 應該也可以
+        await mqtt_client.send(message);
+      }
+      
+      function 發送控制盒上線訊號() {
+        var nowTime= new Date();
+        publish_msg("dyno_online", nowTime.getTime().toString());        
+      }
+        
+      function 亂數產生及發送握力數據() {
+        var rndNumber = ((Math.floor(Math.random()*100)));
+        if ((rndNumber %10)==0) rndNumber+=1;
+        var dyna_data = rndNumber/10;
+        console.log(dyna_data);
+        var nowTime= new Date();
+        var payload={
+          "value": dyna_data,
+          "timestamp": nowTime.getTime().toString()
+        }
+        publish_msg("dyno_data", JSON.stringify(payload));  
+        $("#握力值").text(dyna_data.toString()+" kg");
+      }
+   
+      
+//Topic:
+//00:11:22:33:44:55/cmd
+//
+//Message:
+//{"cmd":"要求量測", "name":"Paul Kang", "pic":"https://profile.line-scdn.net/0m00af3784725150d454061f6166cf75d95eb255c87861", "phone":"0955039022"}      
+      
+      async function 發送量測要求(){
+        var nowTime= new Date();
+        await publish_msg("dyno_online", nowTime.getTime().toString());   
+        await publish_msg("cmd", '{"cmd":"要求量測", "name":"Paul Kang", "pic":"https://profile.line-scdn.net/0m00af3784725150d454061f6166cf75d95eb255c87861", "phone":"0955039022"}');         
+      }
+      
+    </script>
+    
+  </body>
+
+</html>
